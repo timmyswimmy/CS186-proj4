@@ -1,0 +1,85 @@
+Project 3 Write-UpTimothy Wang | 23073372Login: cs186-br* Exercise 1 - Note: Steps 1 and 2 are paraphrased or copied from the Project 3 Specs.
+
+Step 1: simpledb.Parser.main() and simpledb.Parser.start()
+
+When executing SimpleDB, the entry point is simpledb.Parser.main(), which calls simpledb.Parser.start(). This method populates the SimpleDB catalog using a file provided as an argument from the user. It then computes statistics over the imported data through the TableStats class, using the computeStatistics() method. SimpleDB is now ready to take queries from the user! It does so by accepting input, then calling processNextStatement(), bringing us to Step 2.
+
+Step 2: simpledb.Parser.processNextStatement()
+
+This method calls two functions. It first calls handleQueryStatement() to obtain a physical plan for query execution, illustrated by Steps 3 - 6. After the plan is obtained, it calls execute() to execute the query in Step 7.
+
+Step 3: simpledb.Parser.handleQueryStatement()
+
+This method, in turn, also calls two functions. The first function it calls is parseQueryLogicalPlan() to obtain a LogicalPlan, illustrated by Steps 4 - 5. The LogicalPlan serves as a “prototype” for the physical plan we seek from Step 2. The LogicalPlan is converted to a physical plan in the second function, physicalPlan() in Step 6.
+
+Step 4: simpledb.Parser.parseQueryLogicalPlan()
+
+This method creates the LogicalPlan based on the query submitted by the user. The FROM clause dictates which tables SimpleDB needs to scan. After scanning the appropriate tables, SimpleDB uses the Filter and Join classes to parse the WHERE clause of the query. It does so by calling processExpression() in Step 5. After it completes that call, aggregates and GROUP BY clauses are applied.
+
+Step 5: simpledb.Parser.processExpression()
+
+This method parses the WHERE clause of the query using the Filter and Join classes. If subqueries exist, this method calls handleQueryStatement() in Step 3, creating another call in the execution stack.
+
+Step 6: simpledb.LogicalPlan.physicalPlan()
+
+This method translates the LogicalPlan obtained through Steps 3 - 6 into a physical plan. The optimal plan for execution is obtained by calling orderJoins() in the JoinOptimizer class, which optimizes the sequence in which data are joined.
+
+Step 7: query.execute()
+
+Now that we have a physical plan from Step 7, we can execute the query that was submitted by the user.
+
+
+* Exercise 6
+
+Database Used: 0.1% (I had a lot of homework over this break, so I chose the smallest one.)
+
+Part 1: Query Plan
+
+                π(d.fname,d.lname),card:3008
+                            |
+                            ⨝(a.id=c.pid),card:3008
+  __________________________|___________________________
+  |                                                    |
+  σ(a.lname=Spicer),card:1                             ⨝(m.mid=c.mid),card:3008
+  |                                    ________________|_________________
+  σ(a.fname=John),card:1               |                                |
+  |                                    ⨝(d.id=m.did),card:278           |
+  |                           _________|_________                       |
+  |                           |                 |                     scan(Casts c)
+scan(Actor a)               scan(Director d)  scan(Movie_Director m)
+
+In the where clause, we have two criteria that rely solely on the scan of one table, Actor. We find that taking the selection of Actor leaves us with a result with cardinality 1. Since the only other possible join we would have with Actor is the next-largest table, Casts, we choose to perform that join last (it will have large cardinality if we do it first, since it would just be a scan of Casts). Looking at the remaining joins to be performed, we would want to first perform a join that minimizes cardinality, which is achieved by joining the two smallest relevant tables, Director and Movie_Director. Thus we join those two tables first, then join the result with Casts to minimize cardinality. Finally, we join the result with Actors, and perform a projection to get our result.
+
+Part 2:
+
+Query To Run:
+
+select m.name, m.year  
+from Actor a, Casts c, Movie m
+where a.fname = 'Clint' and a.id = c.pid and c.mid = m.id;
+
+Query Plan Generated:
+
+        π(m.name,m.year),card:3008
+                   |
+                   ⨝(a.id=c.pid),card:3008
+  _________________|_________________
+  |                                 |
+  σ(a.fname=Clint),card:1           ⨝(m.id=c.mid),card:3008
+  |                          _______|________
+scan(Actor a)                |              |
+                           scan(Movie m)  scan(Casts c)
+
+Like the previous query, we have a criteria in the WHERE clause that only depends on the scan of table Actor. Since this selection gives us a cardinality 1 result, and it only needs to be joined to a large table Casts, we save that join for last. Joining the other two relevant tables, Movie and Casts, we minimize the cardinality of the join before joining it with Actor. We join the result with Actor and take the projection to complete the execution of our query.
+
+* Changes in API
+
+None.
+
+* Missing or Incomplete Elements
+
+None, hopefully.
+
+* How long did I spend on this project?
+
+I spent about 35-40 hours on this project. Debugging was a real pain...and difficult...and confusing.
